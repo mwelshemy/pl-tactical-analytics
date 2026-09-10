@@ -1,191 +1,268 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from mplsoccer import Pitch
 import matplotlib.pyplot as plt
+from mplsoccer import Pitch, VerticalPitch
+from scipy.ndimage import gaussian_filter
 
-st.set_page_config(page_title="Premier League xG & Shot Intelligence", layout="wide")
+st.set_page_config(
+    page_title="Opta-Style Tactical Analytics",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
-# Custom Title and Header
-st.title("🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League xG & Shot Intelligence Hub")
+# Custom CSS for Sleek Dark Glassmorphism UI
 st.markdown(
-    "Tactical spatial tracking & Expected Goals (xG) distribution engine across top Premier League performers."
+    """
+<style>
+    .stApp { background-color: #0b0f19; color: #f1f5f9; }
+    div[data-testid="stMetricValue"] { font-size: 1.8rem; font-weight: 700; color: #38bdf8; }
+    div[data-testid="stMetricLabel"] { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; }
+    div[data-testid="metric-container"] {
+        background: rgba(30, 41, 59, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        padding: 14px;
+        border-radius: 10px;
+    }
+</style>
+""",
+    unsafe_allow_html=True,
 )
 
 
-# 1. Authentic Event Dataset Engine (Bypasses Fragile Web Scrapers)
+# 1. Advanced Simulated Event Dataset with Positional Coordinates & Physics
 @st.cache_data
-def get_premier_league_data():
-    players_data = [
-        # Erling Haaland (Man City - Central penalty-box predator)
+def generate_tactical_data():
+    np.random.seed(42)
+    profiles = [
         {
             "player": "Erling Haaland",
             "team": "Manchester City",
-            "x": 105 - np.random.uniform(4, 18, 55),
-            "y": np.random.uniform(26, 42, 55),
-            "base_xg": 0.35,
-            "goals": 27,
+            "pos": "CF",
+            "n": 95,
+            "loc_x": (88, 102),
+            "loc_y": (28, 40),
+            "conv": 0.28,
+            "foot": "Left",
         },
-        # Mohamed Salah (Liverpool - Cut-inside right wing & penalty area)
         {
             "player": "Mohamed Salah",
             "team": "Liverpool",
-            "x": 105 - np.random.uniform(6, 24, 62),
-            "y": np.random.uniform(34, 58, 62),
-            "base_xg": 0.22,
-            "goals": 18,
+            "pos": "RW",
+            "n": 105,
+            "loc_x": (82, 98),
+            "loc_y": (38, 56),
+            "conv": 0.20,
+            "foot": "Left",
         },
-        # Bukayo Saka (Arsenal - Right half-space & near post)
         {
             "player": "Bukayo Saka",
             "team": "Arsenal",
-            "x": 105 - np.random.uniform(8, 22, 48),
-            "y": np.random.uniform(36, 56, 48),
-            "base_xg": 0.18,
-            "goals": 16,
+            "pos": "RW",
+            "n": 88,
+            "loc_x": (80, 96),
+            "loc_y": (36, 54),
+            "conv": 0.18,
+            "foot": "Left",
         },
-        # Son Heung-min (Tottenham - Left channel & edge of box clinical finishes)
         {
             "player": "Son Heung-min",
             "team": "Tottenham Hotspur",
-            "x": 105 - np.random.uniform(10, 26, 45),
-            "y": np.random.uniform(14, 34, 45),
-            "base_xg": 0.19,
-            "goals": 17,
+            "pos": "LW",
+            "n": 78,
+            "loc_x": (78, 96),
+            "loc_y": (16, 32),
+            "conv": 0.22,
+            "foot": "Right",
         },
-        # Cole Palmer (Chelsea - Central pocket, penalties & late box runs)
         {
             "player": "Cole Palmer",
             "team": "Chelsea",
-            "x": 105 - np.random.uniform(8, 25, 50),
-            "y": np.random.uniform(22, 48, 50),
-            "base_xg": 0.24,
-            "goals": 22,
+            "pos": "AM/RW",
+            "n": 82,
+            "loc_x": (76, 94),
+            "loc_y": (22, 46),
+            "conv": 0.24,
+            "foot": "Left",
         },
-        # Bruno Fernandes (Man United - Long range volume shooter & direct free kicks)
-        {
-            "player": "Bruno Fernandes",
-            "team": "Manchester United",
-            "x": 105 - np.random.uniform(14, 32, 58),
-            "y": np.random.uniform(20, 48, 58),
-            "base_xg": 0.11,
-            "goals": 10,
-        },
-        # Phil Foden (Man City - Half-space pockets & top of the D)
         {
             "player": "Phil Foden",
             "team": "Manchester City",
-            "x": 105 - np.random.uniform(10, 24, 52),
-            "y": np.random.uniform(20, 46, 52),
-            "base_xg": 0.20,
-            "goals": 19,
+            "pos": "AM/LW",
+            "n": 90,
+            "loc_x": (78, 95),
+            "loc_y": (22, 46),
+            "conv": 0.21,
+            "foot": "Left",
         },
     ]
 
-    all_shots = []
-    np.random.seed(42)
+    all_records = []
+    for p in profiles:
+        xs = np.random.uniform(p["loc_x"][0], p["loc_x"][1], p["n"])
+        ys = np.random.uniform(p["loc_y"][0], p["loc_y"][1], p["n"])
 
-    for p in players_data:
-        n = len(p["x"])
-        dist = 105 - p["x"]
-        angle = np.abs(34 - p["y"])
+        # Calculate true geometric distance and visual angle to goal posts (105, 30.66) to (105, 37.34)
+        dx = 105.0 - xs
+        dy = np.abs(34.0 - ys)
+        dist = np.sqrt(dx**2 + dy**2)
+        angle = np.arctan2(7.32 * dx, dx**2 + dy**2 - (7.32 / 2) ** 2)
 
-        # Calculate realistic spatial xG based on distance and angle to goal center
-        calc_xg = np.clip(
-            np.exp(-0.08 * dist - 0.05 * angle) * (p["base_xg"] / 0.18), 0.03, 0.88
-        )
+        # Non-linear logistic xG approximation formula
+        logit = -0.15 * dist + 1.2 * angle - 0.8
+        xg = 1.0 / (1.0 + np.exp(-logit))
+        xg = np.clip(xg * (p["conv"] / 0.16), 0.02, 0.92)
 
-        # Assign goal outcomes to align with actual seasonal numbers
-        goal_indices = np.argsort(calc_xg)[-p["goals"] :]
-        results = ["Goal" if i in goal_indices else "Saved/Missed" for i in range(n)]
+        # Assign outcomes
+        sorted_indices = np.argsort(xg)
+        goals_count = int(p["n"] * p["conv"])
+        goal_indices = set(sorted_indices[-goals_count:])
 
-        for i in range(n):
-            all_shots.append(
+        for i in range(p["n"]):
+            all_records.append(
                 {
-                    "player": p["player"],
-                    "team": p["team"],
-                    "X": round(p["x"][i], 2),
-                    "Y": round(p["y"][i], 2),
-                    "xG": round(calc_xg[i], 2),
-                    "result": results[i],
+                    "Player": p["player"],
+                    "Team": p["team"],
+                    "Position": p["pos"],
+                    "Preferred Foot": p["foot"],
+                    "X": xs[i],
+                    "Y": ys[i],
+                    "Distance (m)": np.round(dist[i], 1),
+                    "Shot Angle (rad)": np.round(angle[i], 2),
+                    "xG": np.round(xg[i], 3),
+                    "Outcome": (
+                        "Goal"
+                        if i in goal_indices
+                        else ("Saved" if i % 3 == 0 else "Missed")
+                    ),
                 }
             )
 
-    return pd.DataFrame(all_shots)
+    return pd.DataFrame(all_records)
 
 
-df = get_premier_league_data()
+df = generate_tactical_data()
 
-# 2. Sidebar Filters
-st.sidebar.header("Tactical Filters")
-teams = sorted(df["team"].unique())
-selected_team = st.sidebar.selectbox("Select Premier League Club:", teams)
-
-team_shots = df[df["team"] == selected_team]
-players = sorted(team_shots["player"].unique())
-selected_player = st.sidebar.selectbox("Select Player:", players)
-
-player_shots = team_shots[team_shots["player"] == selected_player]
-
-# 3. High-Level Performance KPIs
-total_shots = len(player_shots)
-total_goals = int((player_shots["result"] == "Goal").sum())
-accum_xg = player_shots["xG"].sum()
-xg_diff = total_goals - accum_xg
-shot_quality = accum_xg / max(total_shots, 1)
-
-kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-kpi1.metric("Total Shots", total_shots)
-kpi2.metric("Total Goals", total_goals)
-kpi3.metric("Accumulated xG", f"{accum_xg:.2f}")
-kpi4.metric(
-    "xG Overperformance",
-    f"{xg_diff:+.2f}",
-    delta_color="normal" if xg_diff >= 0 else "inverse",
-)
-
-st.divider()
-
-# 4. Tactical Shot Pitch Visualization
-pitch = Pitch(
-    pitch_type="custom",
-    pitch_length=105,
-    pitch_width=68,
-    half=True,
-    pitch_color="#0f172a",
-    line_color="#334155",
-    goal_type="box",
-)
-
-fig, ax = pitch.draw(figsize=(11, 7.5))
-
-for _, shot in player_shots.iterrows():
-    is_goal = shot["result"] == "Goal"
-    color = "#10b981" if is_goal else "#ef4444"
-    size = shot["xG"] * 700 + 70
-
-    pitch.scatter(
-        shot["X"],
-        shot["Y"],
-        s=size,
-        color=color,
-        edgecolors="#ffffff",
-        linewidth=1.2,
-        alpha=0.85,
-        ax=ax,
+# 2. Header & Controls
+col_title, col_logo = st.columns([4, 1])
+with col_title:
+    st.title("⚽ Opta Tactical Analytics Hub")
+    st.caption(
+        "Spatial Shot Modeling, Continuous Kernel Density Surfaces & Expected Goals (xG) Engine"
     )
 
-st.pyplot(fig)
+st.sidebar.markdown("### Selection & Filter")
+selected_team = st.sidebar.selectbox("Club", sorted(df["Team"].unique()))
+team_df = df[df["Team"] == selected_team]
+selected_player = st.sidebar.selectbox("Player", sorted(team_df["Player"].unique()))
 
-# Legend & Detailed Inspection Table
-st.caption(
-    "🟢 **Goal** | 🔴 **Saved / Missed / Blocked** | **Bubble Radius** corresponds to shot probability (xG value)"
+p_df = team_df[team_df["Player"] == selected_player].copy()
+
+# 3. High-Tier KPI Metrics
+total_shots = len(p_df)
+goals = len(p_df[p_df["Outcome"] == "Goal"])
+total_xg = p_df["xG"].sum()
+xg_diff = goals - total_xg
+xg_per_shot = total_xg / max(total_shots, 1)
+
+m1, m2, m3, m4, m5 = st.columns(5)
+m1.metric("Total Shots", total_shots)
+m2.metric("Actual Goals", goals)
+m3.metric("Accumulated xG", f"{total_xg:.2f}")
+m4.metric("xG Overperformance", f"{xg_diff:+.2f}", delta=f"{xg_diff:+.2f}")
+m5.metric("Avg Shot Quality", f"{xg_per_shot:.2f}")
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# 4. Two Visual Layout: Spatial Scatter + Continuous KDE Heatmap
+tab1, tab2 = st.tabs(
+    ["🎯 Shot Trajectory & Outcomes", "🔥 Continuous Shot Density (KDE)"]
 )
 
-with st.expander("🔍 View Raw Event Log & Spatial Coordinates"):
+with tab1:
+    fig, ax = plt.subplots(figsize=(11, 7), facecolor="#0b0f19")
+    pitch = Pitch(
+        pitch_type="custom",
+        pitch_length=105,
+        pitch_width=68,
+        half=True,
+        pitch_color="#0f172a",
+        line_color="#334155",
+        line_zorder=2,
+        goal_type="box",
+    )
+    pitch.draw(ax=ax)
+
+    # Plot misses and saves
+    non_goals = p_df[p_df["Outcome"] != "Goal"]
+    pitch.scatter(
+        non_goals["X"],
+        non_goals["Y"],
+        s=non_goals["xG"] * 900 + 40,
+        color="#ef4444",
+        edgecolors="#ffffff",
+        linewidth=0.8,
+        alpha=0.6,
+        ax=ax,
+        label="Missed / Saved",
+    )
+
+    # Plot goals with bright gold accent
+    goals_df = p_df[p_df["Outcome"] == "Goal"]
+    pitch.scatter(
+        goals_df["X"],
+        goals_df["Y"],
+        s=goals_df["xG"] * 1100 + 60,
+        color="#38bdf8",
+        edgecolors="#ffffff",
+        linewidth=1.5,
+        alpha=0.95,
+        ax=ax,
+        label="Goal",
+    )
+
+    ax.legend(
+        facecolor="#1e293b", edgecolor="none", labelcolor="#f8fafc", loc="upper left"
+    )
+    st.pyplot(fig, use_container_width=True)
+
+with tab2:
+    fig_kde, ax_kde = plt.subplots(figsize=(11, 7), facecolor="#0b0f19")
+    pitch_kde = Pitch(
+        pitch_type="custom",
+        pitch_length=105,
+        pitch_width=68,
+        half=True,
+        pitch_color="#0f172a",
+        line_color="#475569",
+        line_zorder=3,
+        goal_type="box",
+    )
+    pitch_kde.draw(ax=ax_kde)
+
+    # Compute Gaussian spatial density
+    pitch_kde.kdeplot(
+        p_df["X"],
+        p_df["Y"],
+        ax=ax_kde,
+        cmap="inferno",
+        fill=True,
+        levels=70,
+        thresh=0.05,
+        alpha=0.85,
+        zorder=2,
+    )
+
+    st.pyplot(fig_kde, use_container_width=True)
+    st.caption(
+        "Density contours highlight high-frequency shooting zones and spatial channel bias."
+    )
+
+# 5. Tabular Data Inspection
+with st.expander("📊 Inspect Event Records"):
     st.dataframe(
-        player_shots[["player", "team", "X", "Y", "xG", "result"]].sort_values(
-            by="xG", ascending=False
-        ),
+        p_df[
+            ["Player", "Outcome", "xG", "Distance (m)", "Shot Angle (rad)"]
+        ].sort_values(by="xG", ascending=False),
         use_container_width=True,
     )
